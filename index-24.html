@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerador de Banner de Apoio</title>
+<style>
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#6d0810;color:#fff;text-align:center;padding:16px}
+  h1{font-size:20px;margin:8px 0 12px}
+  canvas{width:100%;max-width:380px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .box{max-width:380px;margin:14px auto;display:flex;flex-direction:column;gap:10px}
+  input[type=text]{padding:14px;font-size:16px;border-radius:10px;border:0;text-align:center}
+  label.file{background:#fff2;padding:12px;border-radius:10px;font-size:14px;cursor:pointer}
+  button{padding:14px;font-size:17px;font-weight:bold;border:0;border-radius:10px;background:#ffd400;color:#7a0a12;cursor:pointer}
+  button.sec{background:#fff2;color:#fff;font-size:14px;font-weight:normal;padding:10px}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+<h1>Crie seu banner de apoio</h1>
+<canvas id="c" width="1080" height="1350"></canvas>
+<div class="box">
+  <input type="text" id="nome" placeholder="Digite seu nome" maxlength="24">
+  <label class="file">📷 Adicionar sua foto (opcional)
+    <input type="file" id="foto" accept="image/*">
+  </label>
+  <button class="sec" id="tirar" style="display:none">Remover foto</button>
+  <button id="baixar">Baixar imagem</button>
+</div>
+
+<script>
+const c = document.getElementById('c'), x = c.getContext('2d');
+const W = 1080, H = 1350;
+let foto = null;
+const FONT = 'Arial Black, Arial, sans-serif';
+
+// ---------- textura (gerada uma vez) ----------
+const tex = document.createElement('canvas');
+tex.width = W; tex.height = H;
+(function(){
+  const t = tex.getContext('2d');
+  // granulado
+  for (let i = 0; i < 26000; i++){
+    const a = Math.random()*0.10;
+    t.fillStyle = Math.random() < .5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
+    t.fillRect(Math.random()*W, Math.random()*H, 2, 2);
+  }
+  // meio-tom (bolinhas) no canto superior esquerdo e inferior direito
+  function halftone(x0,y0,cols,rows){
+    for (let r=0;r<rows;r++) for (let k=0;k<cols;k++){
+      const rad = Math.max(0.5, 7 - (r+k)*0.45);
+      t.fillStyle = 'rgba(255,255,255,0.13)';
+      t.beginPath(); t.arc(x0 + k*26, y0 + r*26, rad, 0, Math.PI*2); t.fill();
+    }
+  }
+  halftone(30, 30, 12, 12);
+  halftone(W-30-11*26, H-60-11*26, 12, 12);
+})();
+
+function estrela(cx, cy, R, rot, cor){
+  x.save(); x.translate(cx, cy); x.rotate(rot);
+  x.beginPath();
+  for (let i = 0; i < 10; i++){
+    const ang = -Math.PI/2 + i*Math.PI/5;
+    const rr = i % 2 === 0 ? R : R*0.42;
+    x.lineTo(Math.cos(ang)*rr, Math.sin(ang)*rr);
+  }
+  x.closePath(); x.fillStyle = cor; x.fill(); x.restore();
+}
+
+function quebra(texto, maxW){
+  const palavras = texto.split(' '); const linhas = []; let atual = '';
+  for (const p of palavras){
+    const t = atual ? atual + ' ' + p : p;
+    if (x.measureText(t).width > maxW && atual){ linhas.push(atual); atual = p; } else atual = t;
+  }
+  if (atual) linhas.push(atual);
+  return linhas;
+}
+
+function desenhar(){
+  const nome = (document.getElementById('nome').value.trim() || 'SEU NOME').toUpperCase();
+  const temFoto = !!foto;
+
+  // fundo
+  const g = x.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#e8111f'); g.addColorStop(0.6,'#c80f1b'); g.addColorStop(1,'#8f0710');
+  x.fillStyle = g; x.fillRect(0,0,W,H);
+
+  // raios sutis saindo do centro
+  x.save(); x.translate(W/2, H*0.45);
+  for (let i = 0; i < 24; i++){
+    x.rotate(Math.PI*2/24);
+    x.fillStyle = i % 2 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.04)';
+    x.beginPath(); x.moveTo(0,0); x.lineTo(1500,-120); x.lineTo(1500,120); x.closePath(); x.fill();
+  }
+  x.restore();
+
+  // círculos amarelos nos cantos
+  x.fillStyle = '#ffd400'; x.beginPath(); x.arc(W+60, 110, 250, 0, Math.PI*2); x.fill();
+  x.fillStyle = '#c40d1a'; x.beginPath(); x.arc(W+60, 110, 185, 0, Math.PI*2); x.fill();
+  x.fillStyle = '#ffd400'; x.beginPath(); x.arc(-80, H-200, 210, 0, Math.PI*2); x.fill();
+  x.fillStyle = '#b30a16'; x.beginPath(); x.arc(-80, H-200, 145, 0, Math.PI*2); x.fill();
+
+  // estrelas decorativas genéricas
+  estrela(120, 360, 46, 0.2, 'rgba(255,212,0,0.9)');
+  estrela(970, 520, 34, -0.3, 'rgba(255,255,255,0.85)');
+  estrela(90, 820, 28, 0.4, 'rgba(255,255,255,0.7)');
+  estrela(990, 1000, 52, 0.1, 'rgba(255,212,0,0.9)');
+  estrela(W/2, 70, 30, 0, 'rgba(255,212,0,0.95)');
+
+  // textura por cima do fundo
+  x.drawImage(tex, 0, 0);
+
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+
+  // posições (mudam conforme existe foto ou não)
+  const P = temFoto
+    ? { eu:215, nome:385, voto:575, foto:860, msg:1085, pill:1235, aviso:1318 }
+    : { eu:260, nome:470, voto:700, foto:0,   msg:960,  pill:1170, aviso:1318 };
+
+  // EU SOU
+  x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 22; x.shadowOffsetY = 8;
+  x.fillStyle = '#fff'; x.font = `900 190px ${FONT}`;
+  x.fillText('EU SOU', W/2, P.eu);
+  x.shadowColor = 'transparent';
+
+  // faixa com nome
+  let size = 150; x.font = `900 ${size}px ${FONT}`;
+  while (x.measureText(nome).width > W - 200 && size > 40){ size -= 4; x.font = `900 ${size}px ${FONT}`; }
+  const bw = x.measureText(nome).width + 90, bh = size + 70;
+  x.save(); x.translate(W/2, P.nome); x.rotate(-0.03);
+  x.shadowColor = 'rgba(0,0,0,.4)'; x.shadowBlur = 18; x.shadowOffsetY = 8;
+  x.fillStyle = '#ffd400'; x.fillRect(-bw/2-10, -bh/2-10+10, bw+20, bh);
+  x.shadowColor = 'transparent';
+  x.fillStyle = '#0a8a3c'; x.fillRect(-bw/2, -bh/2, bw, bh);
+  x.fillStyle = '#fff'; x.fillText(nome, 0, 6);
+  x.restore();
+
+  // EU VOTO 13
+  x.fillStyle = '#fff'; x.font = `900 105px ${FONT}`;
+  x.shadowColor = 'rgba(0,0,0,.3)'; x.shadowBlur = 14; x.shadowOffsetY = 6;
+  x.fillText('EU VOTO', W/2 - 120, P.voto);
+  x.shadowColor = 'transparent';
+  // selo do 13
+  x.save(); x.translate(W/2 + 330, P.voto); x.rotate(0.06);
+  x.fillStyle = '#ffd400'; x.fillRect(-120, -80, 240, 160);
+  x.fillStyle = '#c40d1a'; x.fillRect(-108, -68, 216, 136);
+  x.fillStyle = '#ffd400'; x.font = `900 130px ${FONT}`; x.fillText('13', 0, 6);
+  x.restore();
+
+  // foto circular (só se existir)
+  if (temFoto){
+    const cx = W/2, cy = P.foto, r = 165;
+    x.save();
+    x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 24; x.shadowOffsetY = 10;
+    x.beginPath(); x.arc(cx, cy, r+14, 0, Math.PI*2); x.fillStyle = '#ffd400'; x.fill();
+    x.shadowColor = 'transparent';
+    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI*2); x.clip();
+    const s = Math.max(2*r/foto.width, 2*r/foto.height);
+    x.drawImage(foto, cx - foto.width*s/2, cy - foto.height*s/2, foto.width*s, foto.height*s);
+    x.restore();
+  }
+
+  // mensagem
+  x.fillStyle = '#ffd400'; x.font = `900 62px ${FONT}`;
+  x.fillText('NO DIA 25 DE OUTUBRO', W/2, P.msg - 55);
+  x.fillStyle = '#fff'; x.font = `700 42px Arial, sans-serif`;
+  const msg = 'Vote 13, leve sua família e seus amigos, e não deixe de votar. Cada voto conta pelo Brasil!';
+  const linhas = quebra(msg, W - 200);
+  linhas.forEach((l, i) => x.fillText(l, W/2, P.msg + 20 + i*52));
+
+  // faixa LULA PRESIDENTE 13
+  const txt = 'LULA PRESIDENTE 13';
+  x.font = `900 54px ${FONT}`;
+  const pw = x.measureText(txt).width + 110;
+  x.fillStyle = '#0a8a3c'; x.fillRect(W/2 - pw/2, P.pill - 45, pw, 90);
+  x.fillStyle = '#ffd400'; x.fillRect(W/2 - pw/2, P.pill + 45, pw, 8);
+  x.fillStyle = '#fff'; x.fillText(txt, W/2, P.pill + 3);
+  estrela(W/2 - pw/2 + 38, P.pill, 18, 0, '#ffd400');
+  estrela(W/2 + pw/2 - 38, P.pill, 18, 0, '#ffd400');
+
+  // aviso
+  x.fillStyle = 'rgba(255,255,255,0.75)'; x.font = '400 21px Arial, sans-serif';
+  x.fillText('Banner feito por apoiador. Não é material oficial da campanha.', W/2, P.aviso);
+
+  // faixa de cores embaixo
+  ['#0a8a3c','#ffd400','#1b4fa0','#fff'].forEach((cor,i)=>{ x.fillStyle = cor; x.fillRect(i*W/4, H-16, W/4, 16); });
+}
+
+document.getElementById('nome').addEventListener('input', desenhar);
+document.getElementById('foto').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const img = new Image();
+  img.onload = ()=>{ foto = img; document.getElementById('tirar').style.display = 'block'; desenhar(); };
+  img.src = URL.createObjectURL(f);
+});
+document.getElementById('tirar').addEventListener('click', ()=>{
+  foto = null; document.getElementById('foto').value = '';
+  document.getElementById('tirar').style.display = 'none'; desenhar();
+});
+document.getElementById('baixar').addEventListener('click', ()=>{
+  c.toBlob(b=>{
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'meu-banner.png';
+    a.click();
+  });
+});
+desenhar();
+</script>
+</body>
+</html>
